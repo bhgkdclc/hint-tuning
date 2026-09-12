@@ -78,4 +78,12 @@ python scripts/local_smoke.py evaluate
 
 The commands create `output/local-smoke/preflight.json`, `train_metrics.jsonl`, `train_manifest.json`, `adapter/`, `predictions.jsonl`, `inference_manifest.json`, and `evaluation.json`. Each stage checks hashes of the preceding artifacts. Use `--force` only when intentionally replacing an existing artifact from that stage.
 
-The isolated environment was created successfully and currently pins PyTorch 2.13.0+cu130, Transformers 4.57.6, PEFT 0.18.0, Accelerate 1.12.0, Tokenizers 0.22.2, Safetensors 0.8.0, and NumPy 2.2.6. `pip check`, Qwen3 class import, `torch.cuda.is_available()`, BF16 support, and a small BF16 CUDA matrix multiplication passed. The model-weight preflight and all four commands remain unrun because WSL startup became intermittent again before the 1.5 GB model download.
+The isolated environment was created successfully and currently pins PyTorch 2.13.0+cu130, Transformers 4.57.6, PEFT 0.18.0, Accelerate 1.12.0, Tokenizers 0.22.2, Safetensors 0.8.0, and NumPy 2.2.6. `pip check`, Qwen3 class import, `torch.cuda.is_available()`, BF16 support, and a small BF16 CUDA matrix multiplication passed. The model loader now requires the complete fixed-revision model in `output/models/qwen3-0.6b-c1899de` and verifies every required file's SHA-256 before loading with `local_files_only=True`. The model-weight preflight and all four commands remain unrun because WSL startup became intermittent again before the 1.5 GB model download completed.
+
+The pinned model assets can be downloaded from either Windows or WSL. The helper verifies all small files directly, fetches the 1.5 GB weight through resumable 8 MiB byte ranges, and accepts the assembled file only when its size and LFS SHA-256 match the config:
+
+```bash
+python scripts/download_local_smoke_model.py
+```
+
+Interrupted runs reuse finished chunks and the existing `model.safetensors.part` prefix. If final verification reports that an old partial prefix is corrupt, run the helper once with `--restart` to discard incomplete download artifacts. Model files and partial chunks stay under ignored `output/models/`; they are never committed.

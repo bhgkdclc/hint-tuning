@@ -98,6 +98,26 @@ def package_versions(cfg: dict[str, Any], require_exact: bool = True) -> dict[st
     return versions
 
 
+def validate_model_files(cfg: dict[str, Any]) -> Path:
+    model_dir = resolve(cfg["model_dir"])
+    expected = cfg["model_files_sha256"]
+    expected_sizes = cfg["model_files_size"]
+    if set(expected) != set(expected_sizes):
+        raise ValueError("Model hash and size manifests contain different files")
+    for filename, expected_hash in expected.items():
+        path = model_dir / filename
+        if not path.is_file():
+            raise FileNotFoundError(f"Missing pinned local model file: {path}")
+        if path.stat().st_size != expected_sizes[filename]:
+            raise ValueError(
+                f"Local model file size mismatch: {filename}: {path.stat().st_size}"
+            )
+        actual_hash = sha256(path)
+        if actual_hash != expected_hash:
+            raise ValueError(f"Local model file hash mismatch: {filename}: {actual_hash}")
+    return model_dir
+
+
 def validate_data(cfg: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     train_path = resolve(cfg["train_data"])
     eval_path = resolve(cfg["eval_data"])
@@ -161,11 +181,11 @@ def seed_everything(seed: int, torch) -> None:
 def load_tokenizer(cfg: dict[str, Any]):
     from transformers import AutoTokenizer
 
+    model_dir = validate_model_files(cfg)
     tokenizer = AutoTokenizer.from_pretrained(
-        cfg["model_id"],
-        revision=cfg["model_revision"],
-        cache_dir=resolve(cfg["cache_dir"]),
-        trust_remote_code=True,
+        model_dir,
+        local_files_only=True,
+        trust_remote_code=False,
     )
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -175,15 +195,15 @@ def load_tokenizer(cfg: dict[str, Any]):
 def load_base_model(cfg: dict[str, Any], torch):
     from transformers import AutoModelForCausalLM
 
+    model_dir = validate_model_files(cfg)
     dtype = {"bfloat16": torch.bfloat16, "float16": torch.float16}[cfg["dtype"]]
     return AutoModelForCausalLM.from_pretrained(
-        cfg["model_id"],
-        revision=cfg["model_revision"],
-        cache_dir=resolve(cfg["cache_dir"]),
+        model_dir,
         torch_dtype=dtype,
         attn_implementation=cfg["attention_implementation"],
         low_cpu_mem_usage=True,
-        trust_remote_code=True,
+        trust_remote_code=False,
+        local_files_only=True,
         device_map={"": 0},
     )
 

@@ -1,0 +1,43 @@
+{
+  "kind": "engineering-smoke-only",
+  "model_id": "Qwen/Qwen3-0.6B",
+  "model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+  "cache_dir": "~/.cache/huggingface/hint-tuning",
+  "train_data": "output/smoke/train.json",
+  "eval_data": "output/smoke/eval.json",
+  "data_manifest": "output/smoke/manifest.json",
+  "expected_train_sha256": "cebc3133c0ac6f748e56ac5207b09103529f9b741c428c544006cb145a13b128",
+  "expected_eval_sha256": "c9ae3fcae58592fc9c349b608b7603678c3564e0da7d1f6f4164366b8f396b83",
+  "output_dir": "output/local-smoke",
+  "dtype": "bfloat16",
+  "attention_implementation": "sdpa",
+  "max_sequence_tokens": 3072,
+  "minimum_free_vram_mib": 4608,
+  "minimum_post_dry_vram_mib": 512,
+  "dry_run_source_index": 281,
+  "train_source_indices": [473, 758],
+  "max_steps": 2,
+  "learning_rate": 0.0002,
+  "max_grad_norm": 1.0,
+  "seed": 17,
+  "lora": {
+    "rank": 8,
+    "alpha": 16,
+    "dropout": 0.0,
+    "target_modules": ["q_proj", "v_proj"]
+  },
+  "evaluation_prompt_suffix": "Please reason step by step, and put your final answer within \\boxed{}.",
+  "generation": {
+    "do_sample": false,
+    "max_new_tokens": 128
+  },
+  "required_packages": {
+    "torch": "2.13.0",
+    "transformers": "4.57.6",
+    "peft": "0.18.0",
+    "accelerate": "1.12.0",
+    "tokenizers": "0.22.2",
+    "safetensors": "0.8.0",
+    "numpy": "2.2.6"
+  }
+}

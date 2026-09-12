@@ -38,7 +38,7 @@ With `tokenizers` and `jinja2` installed in an isolated Python environment, run:
 python scripts/prepare_local_smoke.py
 ```
 
-It verifies the SFT and tokenizer SHA-256 hashes, raw-problem alignment, state markers, complete chat-template sequence lengths, supervised assistant span, and split disjointness. It writes ignored `output/smoke/train.json`, `eval.json`, and `manifest.json`. The current run produced 7 train and 2 eval rows, with maximum complete sequence 2,691 tokens, train SHA-256 `c86e07ad91d9f97affbf2689c7369fd2be969d55620f191c4a729cf232f02529`, and eval SHA-256 `efb89e3f88f989e6d59d81545f2d5aa6c8e051f40256566113cb4a9a48d33c29`.
+It writes platform-independent LF JSON and verifies the SFT and tokenizer SHA-256 hashes, raw-problem alignment, state markers, complete chat-template sequence lengths, supervised assistant span, and split disjointness. It writes ignored `output/smoke/train.json`, `eval.json`, and `manifest.json`. The current Windows and WSL runs both produced 7 train and 2 eval rows, with maximum complete sequence 2,691 tokens, train SHA-256 `cebc3133c0ac6f748e56ac5207b09103529f9b741c428c544006cb145a13b128`, and eval SHA-256 `c9ae3fcae58592fc9c349b608b7603678c3564e0da7d1f6f4164366b8f396b83`.
 
 ## Checks required before the first optimizer step
 
@@ -52,3 +52,30 @@ It verifies the SFT and tokenizer SHA-256 hashes, raw-problem alignment, state m
 The official `evaluation/eval.sh` and Relax scripts must **not** be used for this local run: both assume multiple GPUs and 32K-token contexts. The local evaluation should reuse the same `Please reason step by step, and put your final answer within \\boxed{}.` prompt style while limiting itself to the two held-out records. Any resulting numbers must be labeled `smoke`, not Hint Tuning benchmark results.
 
 Formal reproduction on rented GPUs can later run the pinned Qwen3-4B pair, the full construction pipeline, full-parameter Relax SFT, checkpoint export, and lighteval benchmarks. The paper's 8-H20, 32K configuration is a separate experiment from this local gate.
+
+## Gated smoke commands
+
+The local harness is pinned in `configs/local-smoke.json` and `requirements/local-smoke.txt`. Run it from WSL with the repository at `/mnt/e/Note/HintTuning` and the isolated environment at `/root/.venvs/hint-tuning-reproduce`:
+
+```bash
+cd /mnt/e/Note/HintTuning
+source /root/.venvs/hint-tuning-reproduce/bin/activate
+
+# Longest selected train record: load model + LoRA + forward/backward only.
+python scripts/local_smoke.py preflight
+
+# Refuses to run unless the current config and runner passed preflight.
+python scripts/local_smoke.py train
+
+# Run as a separate command/process to prove the saved adapter reloads.
+python scripts/local_smoke.py infer
+
+# Deterministic two-record plumbing metric; not a paper benchmark.
+python scripts/local_smoke.py evaluate
+```
+
+`preflight` uses source row 281 (2,672 complete chat tokens), performs no optimizer update, records peak CUDA memory, and must leave at least 512 MiB free. `train` uses source rows 473 and 758, exactly one optimizer step per record. It uses BF16 Qwen3-0.6B, LoRA rank 8 on `q_proj`/`v_proj`, batch size 1, no accumulation, no quantization, and SDPA. `infer` reloads the adapter from disk and greedily generates at most 128 new tokens for each held-out prompt. `evaluate` extracts the last complete `\boxed{...}` expression and applies a strict normalized match; this is intentionally a smoke-only parser, not the official lighteval/LLM judge.
+
+The commands create `output/local-smoke/preflight.json`, `train_metrics.jsonl`, `train_manifest.json`, `adapter/`, `predictions.jsonl`, `inference_manifest.json`, and `evaluation.json`. Each stage checks hashes of the preceding artifacts. Use `--force` only when intentionally replacing an existing artifact from that stage.
+
+The isolated environment was created successfully and currently pins PyTorch 2.13.0+cu130, Transformers 4.57.6, PEFT 0.18.0, Accelerate 1.12.0, Tokenizers 0.22.2, Safetensors 0.8.0, and NumPy 2.2.6. `pip check`, Qwen3 class import, `torch.cuda.is_available()`, BF16 support, and a small BF16 CUDA matrix multiplication passed. The model-weight preflight and all four commands remain unrun because WSL startup became intermittent again before the 1.5 GB model download.

@@ -87,3 +87,11 @@ python scripts/download_local_smoke_model.py
 ```
 
 Interrupted runs reuse finished chunks and the existing `model.safetensors.part` prefix. If final verification reports that an old partial prefix is corrupt, run the helper once with `--restart` to discard incomplete download artifacts. Model files and partial chunks stay under ignored `output/models/`; they are never committed.
+
+If Hugging Face's storage endpoint is slow from the current network, use Qwen's official ModelScope copy as a byte source:
+
+```bash
+python scripts/download_local_smoke_model.py --source modelscope
+```
+
+The alternate source does not weaken the pin: the helper still rejects any file whose exact byte size or SHA-256 differs from the fixed Hugging Face revision manifest.

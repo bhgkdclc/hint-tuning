@@ -29,9 +29,13 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def model_url(model_id: str, revision: str, filename: str) -> str:
+def model_url(model_id: str, revision: str, filename: str, source: str) -> str:
     quoted_name = urllib.parse.quote(filename, safe="/")
-    return f"https://huggingface.co/{model_id}/resolve/{revision}/{quoted_name}?download=true"
+    if source == "huggingface":
+        return f"https://huggingface.co/{model_id}/resolve/{revision}/{quoted_name}?download=true"
+    if source == "modelscope":
+        return f"https://modelscope.cn/models/{model_id}/resolve/master/{quoted_name}"
+    raise ValueError(f"Unknown download source: {source}")
 
 
 def request(url: str, start: int | None = None, end: int | None = None):
@@ -200,6 +204,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--retries", type=int, default=8)
     parser.add_argument(
+        "--source",
+        choices=("huggingface", "modelscope"),
+        default="huggingface",
+        help="Byte source; fixed size and SHA256 remain authoritative",
+    )
+    parser.add_argument(
         "--restart",
         action="store_true",
         help="Discard incomplete weight chunks before downloading",
@@ -236,7 +246,7 @@ def main() -> None:
         ):
             print(f"Verified existing {filename}")
             continue
-        url = model_url(cfg["model_id"], cfg["model_revision"], filename)
+        url = model_url(cfg["model_id"], cfg["model_revision"], filename, args.source)
         if filename == "model.safetensors":
             download_large_file(
                 url,

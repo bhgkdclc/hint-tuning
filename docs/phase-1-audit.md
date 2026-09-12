@@ -63,11 +63,14 @@ This confirms Relax is the formal-paper path and is unsuitable as the first 6 Gi
 - `construction/config.yaml` and `evaluation/eval.sh` default to 4-way tensor parallelism and 32K tokens. The repository has no pinned `requirements.txt`, `pyproject.toml`, or lockfile.
 - The paper appendix reports 1,003 constructed samples while this checkout has 1,000 raw problems. Verify the released SFT dataset separately rather than assuming counts match.
 - The released file has 1,000 rows, confirming the paper appendix's 1,003 total is inconsistent with both the repository input and released data.
+- Classifying the pinned released responses by the checkout's state markers gives 322 No-Hint, 278 Sparse-Hint, and 400 Full-Hint records. These counts also differ from the appendix's 357/264/382 distribution.
 - At the current implementation boundary, `merge.py` treats `prefix_ex is None` (think-model graded correct) as No-Hint. A successful prefix probe with `k_value=0` receives the Sparse-Hint marker. A direct function check confirms this behavior. Preserve it in baseline records and report it as upstream behavior.
 
 ## Current WSL issue
 
-WSL initially started and passed GPU queries. Later launches failed with `CreateVm/HCS/0x800705aa`, while Windows had only about 2.1–2.4 GB free of 16 GB RAM. This code means insufficient system resources; it is not evidence that Ubuntu, CUDA passthrough, or the VHDX needs reinstalling. Freeing host memory or rebooting is the minimum corrective action before package installation. Do not change `.wslconfig` until WSL can start again and actual PyTorch memory behavior is measured.
+WSL initially started and passed GPU queries. Later launches failed with `CreateVm/HCS/0x800705aa`. On 2026-09-12, Windows had about 2.8–3.0 GiB free physical memory and 6.1–6.9 GiB free virtual memory; the Hyper-V Compute operational log showed VM creation followed by `0x800705aa` notifications. `vmcompute` and `WslService` were running, both registered WSL2 distributions were stopped, and WSL was version 2.7.14. Temporary `.wslconfig` trials at 4 GiB RAM/2 GiB swap and 2 GiB RAM/1 GiB swap produced the same error after `wsl --shutdown`; the temporary file was then removed, restoring the original no-`.wslconfig` state.
+
+The evidence localizes failure to host-side VM creation before Ubuntu boots, but does not prove one underlying cause. Rebooting Windows and retrying the read-only checks is the next minimal action. Do not reinstall Ubuntu, unregister the distribution, edit its VHDX, or install packages until this succeeds.
 
 ## First execution plan
 

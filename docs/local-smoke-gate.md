@@ -1,4 +1,4 @@
-# Local baseline smoke gate (proposed, not yet run)
+# Local baseline smoke gate (data slice verified; training not yet run)
 
 This is a workflow check for the RTX 3060 Laptop GPU (6 GiB), not a reproduction of paper metrics. It uses the authors' released SFT responses without editing their difficulty labels or hint text. Keep `main` at the official commit and make any runnable harness changes only on `reproduce`.
 
@@ -22,6 +22,23 @@ This is a workflow check for the RTX 3060 Laptop GPU (6 GiB), not a reproduction
 | Eval | 92 | Sparse-Hint | 2,691 |
 
 The nine selected prompts are distinct after whitespace normalization. The Full-Hint sample is longer, so set a 3,072-token **upper bound** and batch size 1. Reject a sample if the complete chat-formatted sequence exceeds the bound; do not truncate away `</think>` or the final answer. Use a short generation cap for the two held-out questions. This tiny set verifies plumbing; its accuracy cannot support a research claim.
+
+The selection is implemented in [`scripts/prepare_local_smoke.py`](../scripts/prepare_local_smoke.py). The raw `data/problems.json` is tracked in Git. From the repository root in a Linux shell, download the released SFT file and the model's two tokenizer files at their fixed revisions:
+
+```bash
+mkdir -p output
+curl -fL --retry 3 "https://huggingface.co/datasets/redai-infra/hint-tuning-1k/resolve/b4c3eac6b9b4880b6670f8d13b28b80f2cd1b302/k1.15_llmgrading.json" -o data/hint_tuning_1k.json
+curl -fL --retry 3 "https://huggingface.co/Qwen/Qwen3-0.6B/resolve/c1899de289a04d12100db370d81485cdf75e47ca/tokenizer.json" -o output/qwen3-0.6b-tokenizer.json
+curl -fL --retry 3 "https://huggingface.co/Qwen/Qwen3-0.6B/resolve/c1899de289a04d12100db370d81485cdf75e47ca/tokenizer_config.json" -o output/qwen3-0.6b-tokenizer_config.json
+```
+
+With `tokenizers` and `jinja2` installed in an isolated Python environment, run:
+
+```bash
+python scripts/prepare_local_smoke.py
+```
+
+It verifies the SFT and tokenizer SHA-256 hashes, raw-problem alignment, state markers, complete chat-template sequence lengths, supervised assistant span, and split disjointness. It writes ignored `output/smoke/train.json`, `eval.json`, and `manifest.json`. The current run produced 7 train and 2 eval rows, with maximum complete sequence 2,691 tokens, train SHA-256 `c86e07ad91d9f97affbf2689c7369fd2be969d55620f191c4a729cf232f02529`, and eval SHA-256 `efb89e3f88f989e6d59d81545f2d5aa6c8e051f40256566113cb4a9a48d33c29`.
 
 ## Checks required before the first optimizer step
 

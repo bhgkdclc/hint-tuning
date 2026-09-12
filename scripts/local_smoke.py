@@ -18,6 +18,7 @@ import re
 import subprocess
 import sys
 import time
+from functools import lru_cache
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -98,10 +99,12 @@ def package_versions(cfg: dict[str, Any], require_exact: bool = True) -> dict[st
     return versions
 
 
-def validate_model_files(cfg: dict[str, Any]) -> Path:
-    model_dir = resolve(cfg["model_dir"])
-    expected = cfg["model_files_sha256"]
-    expected_sizes = cfg["model_files_size"]
+@lru_cache(maxsize=4)
+def _verify_model_files(
+    model_dir: Path, hashes: tuple[tuple[str, str], ...], sizes: tuple[tuple[str, int], ...]
+) -> Path:
+    expected = dict(hashes)
+    expected_sizes = dict(sizes)
     if set(expected) != set(expected_sizes):
         raise ValueError("Model hash and size manifests contain different files")
     for filename, expected_hash in expected.items():
@@ -116,6 +119,15 @@ def validate_model_files(cfg: dict[str, Any]) -> Path:
         if actual_hash != expected_hash:
             raise ValueError(f"Local model file hash mismatch: {filename}: {actual_hash}")
     return model_dir
+
+
+def validate_model_files(cfg: dict[str, Any]) -> Path:
+    model_dir = resolve(cfg["model_dir"])
+    return _verify_model_files(
+        model_dir,
+        tuple(sorted(cfg["model_files_sha256"].items())),
+        tuple(sorted(cfg["model_files_size"].items())),
+    )
 
 
 def validate_data(cfg: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
@@ -199,7 +211,7 @@ def load_base_model(cfg: dict[str, Any], torch):
     dtype = {"bfloat16": torch.bfloat16, "float16": torch.float16}[cfg["dtype"]]
     return AutoModelForCausalLM.from_pretrained(
         model_dir,
-        torch_dtype=dtype,
+        dtype=dtype,
         attn_implementation=cfg["attention_implementation"],
         low_cpu_mem_usage=True,
         trust_remote_code=False,
@@ -500,6 +512,11 @@ def cmd_infer(cfg: dict[str, Any], config_path: Path, force: bool) -> None:
     base = load_base_model(cfg, torch)
     model = PeftModel.from_pretrained(base, out_dir / "adapter", is_trainable=False)
     model.config.use_cache = True
+    model.generation_config.do_sample = cfg["generation"]["do_sample"]
+    if not model.generation_config.do_sample:
+        model.generation_config.temperature = None
+        model.generation_config.top_p = None
+        model.generation_config.top_k = None
     model.eval()
     device = next(model.parameters()).device
     eval_rows = [row for row in manifest["rows"] if row["split"] == "eval"]

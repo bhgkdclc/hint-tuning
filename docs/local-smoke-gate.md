@@ -99,3 +99,9 @@ The alternate source does not weaken the pin: the helper still rejects any file 
 ### Measured 6 GiB boundary
 
 An initial dry run deliberately exercised source row 281, the shortest released Full-Hint record at 2,672 complete chat tokens. Its forward and backward passes completed, but PyTorch reported 6,728 MiB peak allocated, 6,878 MiB peak reserved, and 0 MiB free, so the 512 MiB safety gate correctly failed before any optimizer step. There is no shorter complete Full-Hint record in the released 1K SFT file. The local gate therefore dry-runs the longest record that actually participates in the two-step optimizer smoke (row 758, 730 tokens). Row 281 remains in the prepared data so the published Full-Hint format is still validated, but it is not trained on this 6 GiB machine. Full-state training belongs on the later formal-GPU run.
+
+## Completed local engineering smoke
+
+The pinned model download completed with the expected 1,503,300,328-byte size and SHA-256. WSL2 Ubuntu 22.04, Python 3.10.12, PyTorch 2.13.0+cu130, CUDA availability, BF16 support, and `pip check` passed on the RTX 3060 Laptop GPU. The 730-token preflight passed with 2,676 MiB peak allocated, 2,722 MiB peak reserved, and 2,354 MiB free after backward. Two LoRA optimizer steps then ran on original released rows 473 and 758 with losses 1.2940 and 0.5382; peak reserved memory in training was 3,730 MiB. The saved adapter was reloaded in a new process and generated 128 tokens for each of two held-out prompts.
+
+The strict smoke evaluator reported 0/2. Both generations exhausted the deliberately short 128-token cap while still in `<think>` and contained no `\boxed{}` final answer. This confirms the data, optimization, checkpoint, reload, inference, and evaluation machinery; it does **not** measure paper-level answer accuracy or prove that the Hint Tuning method improves reasoning. The hash-linked local artifacts are under ignored `output/local-smoke/`.

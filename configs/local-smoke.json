@@ -32,7 +32,7 @@
   "max_sequence_tokens": 3072,
   "minimum_free_vram_mib": 4608,
   "minimum_post_dry_vram_mib": 512,
-  "dry_run_source_index": 281,
+  "dry_run_source_index": 758,
   "train_source_indices": [473, 758],
   "max_steps": 2,
   "learning_rate": 0.0002,

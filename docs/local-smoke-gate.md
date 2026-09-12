@@ -74,7 +74,7 @@ python scripts/local_smoke.py infer
 python scripts/local_smoke.py evaluate
 ```
 
-`preflight` uses source row 281 (2,672 complete chat tokens), performs no optimizer update, records peak CUDA memory, and must leave at least 512 MiB free. `train` uses source rows 473 and 758, exactly one optimizer step per record. It uses BF16 Qwen3-0.6B, LoRA rank 8 on `q_proj`/`v_proj`, batch size 1, no accumulation, no quantization, and SDPA. `infer` reloads the adapter from disk and greedily generates at most 128 new tokens for each held-out prompt. `evaluate` extracts the last complete `\boxed{...}` expression and applies a strict normalized match; this is intentionally a smoke-only parser, not the official lighteval/LLM judge.
+`preflight` uses source row 758, the longer of the two records that will actually enter the optimizer (730 complete chat tokens). It performs no optimizer update, records peak CUDA memory, and must leave at least 512 MiB free. `train` uses source rows 473 and 758, exactly one optimizer step per record. It uses BF16 Qwen3-0.6B, LoRA rank 8 on `q_proj`/`v_proj`, batch size 1, no accumulation, no quantization, and SDPA. `infer` reloads the adapter from disk and greedily generates at most 128 new tokens for each held-out prompt. `evaluate` extracts the last complete `\boxed{...}` expression and applies a strict normalized match; this is intentionally a smoke-only parser, not the official lighteval/LLM judge.
 
 The commands create `output/local-smoke/preflight.json`, `train_metrics.jsonl`, `train_manifest.json`, `adapter/`, `predictions.jsonl`, `inference_manifest.json`, and `evaluation.json`. Each stage checks hashes of the preceding artifacts. Use `--force` only when intentionally replacing an existing artifact from that stage.
 
@@ -95,3 +95,7 @@ python scripts/download_local_smoke_model.py --source modelscope
 ```
 
 The alternate source does not weaken the pin: the helper still rejects any file whose exact byte size or SHA-256 differs from the fixed Hugging Face revision manifest.
+
+### Measured 6 GiB boundary
+
+An initial dry run deliberately exercised source row 281, the shortest released Full-Hint record at 2,672 complete chat tokens. Its forward and backward passes completed, but PyTorch reported 6,728 MiB peak allocated, 6,878 MiB peak reserved, and 0 MiB free, so the 512 MiB safety gate correctly failed before any optimizer step. There is no shorter complete Full-Hint record in the released 1K SFT file. The local gate therefore dry-runs the longest record that actually participates in the two-step optimizer smoke (row 758, 730 tokens). Row 281 remains in the prepared data so the published Full-Hint format is still validated, but it is not trained on this 6 GiB machine. Full-state training belongs on the later formal-GPU run.
